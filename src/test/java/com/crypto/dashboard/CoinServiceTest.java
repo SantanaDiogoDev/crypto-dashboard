@@ -1,7 +1,9 @@
 package com.crypto.dashboard;
 
 import com.crypto.dashboard.model.Coin;
+import com.crypto.dashboard.model.CoinEntry;
 import com.crypto.dashboard.repository.CoinRepository;
+import com.crypto.dashboard.repository.CoinEntryRepository;
 import com.crypto.dashboard.service.CoinService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -9,8 +11,8 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 
-import java.util.Arrays;
-import java.util.List;
+import java.time.LocalDate;
+import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.Mockito.*;
@@ -19,6 +21,9 @@ class CoinServiceTest {
 
     @Mock
     private CoinRepository coinRepository;
+
+    @Mock
+    private CoinEntryRepository coinEntryRepository;
 
     @InjectMocks
     private CoinService coinService;
@@ -29,46 +34,74 @@ class CoinServiceTest {
     }
 
     @Test
-    void testAddCoin() {
+    void testAddCoinEntry_NewCoin() {
         // Arrange
-        Coin coin = new Coin();
-        coin.setCoinName("Bitcoin");
-        coin.setValue(50000.0);
-        coin.setDate("2023-10-01");
+        String coinName = "Solana";
+        Double value = 50.0;
+        Double quantity = 3.5;
+        String date = "2023-10-01";
 
-        when(coinRepository.save(coin)).thenReturn(coin);
+        when(coinRepository.findByName(coinName)).thenReturn(null);
+
+        Coin coin = new Coin();
+        coin.setName(coinName);
+
+        CoinEntry entry = new CoinEntry();
+        entry.setCoin(coin);
+        entry.setValue(value);
+        entry.setQuantity(quantity);
+        entry.setDate(LocalDate.parse(date));
+
+        when(coinRepository.save(any(Coin.class))).thenReturn(coin);
+        when(coinEntryRepository.save(any(CoinEntry.class))).thenReturn(entry);
 
         // Act
-        Coin savedCoin = coinService.addCoin(coin);
+        CoinEntry result = coinService.addCoinEntry(coinName, value, quantity, date);
 
         // Assert
-        assertEquals("Bitcoin", savedCoin.getCoinName());
-        assertEquals(50000.0, savedCoin.getValue());
-        verify(coinRepository, times(1)).save(coin);
+        assertEquals(coinName, result.getCoin().getName());
+        assertEquals(value, result.getValue());
+        assertEquals(quantity, result.getQuantity());
+        assertEquals(LocalDate.parse(date), result.getDate());
+
+        verify(coinRepository, times(1)).findByName(coinName);
+        verify(coinRepository, times(1)).save(any(Coin.class));
+        verify(coinEntryRepository, times(1)).save(any(CoinEntry.class));
     }
 
     @Test
-    void testGetCoinsByCoinName() {
+    void testAddCoinEntry_ExistingCoin() {
         // Arrange
-        Coin coin1 = new Coin();
-        coin1.setCoinName("Bitcoin");
-        coin1.setValue(50000.0);
-        coin1.setDate("2023-10-01");
+        String coinName = "Bitcoin";
+        Double value = 30000.0;
+        Double quantity = 1.2;
+        String date = "2023-10-01";
 
-        Coin coin2 = new Coin();
-        coin2.setCoinName("Bitcoin");
-        coin2.setValue(51000.0);
-        coin2.setDate("2023-10-02");
+        Coin existingCoin = new Coin();
+        existingCoin.setId(1L);
+        existingCoin.setName(coinName);
 
-        when(coinRepository.findByCoinName("Bitcoin")).thenReturn(Arrays.asList(coin1, coin2));
+        when(coinRepository.findByName(coinName)).thenReturn(existingCoin);
+
+        CoinEntry entry = new CoinEntry();
+        entry.setCoin(existingCoin);
+        entry.setValue(value);
+        entry.setQuantity(quantity);
+        entry.setDate(LocalDate.parse(date));
+
+        when(coinEntryRepository.save(any(CoinEntry.class))).thenReturn(entry);
 
         // Act
-        List<Coin> coins = coinService.getCoinsByCoinName("Bitcoin");
+        CoinEntry result = coinService.addCoinEntry(coinName, value, quantity, date);
 
         // Assert
-        assertEquals(2, coins.size());
-        assertEquals("Bitcoin", coins.get(0).getCoinName());
-        assertEquals(50000.0, coins.get(0).getValue());
-        verify(coinRepository, times(1)).findByCoinName("Bitcoin");
+        assertEquals(coinName, result.getCoin().getName());
+        assertEquals(value, result.getValue());
+        assertEquals(quantity, result.getQuantity());
+        assertEquals(LocalDate.parse(date), result.getDate());
+
+        verify(coinRepository, times(1)).findByName(coinName);
+        verify(coinRepository, never()).save(any(Coin.class)); // No new coin should be saved
+        verify(coinEntryRepository, times(1)).save(any(CoinEntry.class));
     }
 }
